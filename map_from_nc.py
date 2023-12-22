@@ -56,3 +56,28 @@ try:
 except Exception as e:
     print(e)
 
+# transpose and make a new DataArray with all data, without reversing xyz in making a new data array
+try:
+    ncT = nc.transpose()
+    data = nc['lithok'].data
+    xrd = nc['xrd'].data
+    yrd = nc['yrd'].data
+    z = nc['z'].data
+    da = xr.DataArray(data, dims=('x', 'y', 'z'), coords={'x': xrd, 'y': yrd})
+    da.to_netcdf('output6.nc')
+    da.rio.to_raster('output6.tiff')
+except Exception as e:
+    print(e)
+
+# use xrd and yrd instead of x and y
+try:
+    ncT = nc.transpose()
+    data = nc['lithok'].data
+    xrd = nc['xrd'].data
+    yrd = nc['yrd'].data
+    z = nc['z'].data
+    da = xr.DataArray(data, dims=('xrd', 'yrd', 'z'), coords={'xrd': xrd, 'yrd': yrd})
+    da.to_netcdf('output7.nc')
+    da.rio.to_raster('output7.tiff')
+except Exception as e:
+    print(e)
