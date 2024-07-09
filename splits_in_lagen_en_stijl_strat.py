@@ -2,7 +2,7 @@
 # script om te gebruiken in QGIS
 
 # lees de laag in
-layerName = 'geotop_Almere_Pampus_-50_5_strat'
+layerName = 'geotop_strat'
 lyr = QgsProject.instance().mapLayersByName(layerName)[0]
 
 pcolor = []

@@ -2,7 +2,7 @@
 # script om te gebruiken in QGIS
 
 # lees de laag in
-layerName = 'geotop_Amsterdam_lithok'
+layerName = 'geotop_lithok'
 lyr = QgsProject.instance().mapLayersByName(layerName)[0]
 
 pcolor = []
