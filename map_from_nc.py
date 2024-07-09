@@ -1,83 +1,95 @@
+# code om GeoTOP data op te halen
+# en een netcdf te produceren die in QGIS ingelezen kan worden als kaartlaag
+
 import xarray as xr
-import rioxarray as rio
-import matplotlib.pyplot as plt
+import numpy as np
+from netCDF4 import Dataset
 
 
-# write direct to geotiff
-try:
-    nc = xr.open_dataset('./output/geotop.nc')
-    nc.to_netcdf('output1.nc')
-    nc.rio.to_raster(r'output1.tiff')
-except Exception as e:
-    print(e)
+# geef coördinaten op in RD van linksonder en rechtsboven
+links = [115000,481200]
+rechts = [125000,493600]
+diepte = [-15, 5]
 
-# make a new DataArray with all data
-try:
-    data = nc['lithok'].data
-    xrd = nc['xrd'].data
-    yrd = nc['yrd'].data
-    z = nc['z'].data
-    da = xr.DataArray(data, dims=('z', 'y', 'x'), coords={'x': xrd, 'y': yrd})
-    da.to_netcdf('output2.nc')
-    da.rio.to_raster('output2.tiff')
-except Exception as e:
-    print(e)
+def x_van_rd_naar_geotop(x):
+    # voor GeoTop v1.5 (anders dan v1.4!!)
+    # x: waarde tussen 0 en 2645, in RD is dat 13600 en 278200
+    # je kan een range opgeven door [xStart:stapgrootte:xEnd]
+    return (x - 13_600) / 100
 
-# make a new DataArray with one layer
-try:
-    data = nc['lithok'].data[0]
-    xrd = nc['xrd'].data
-    yrd = nc['yrd'].data
-    z = nc['z'].data
-    da = xr.DataArray(data, dims=('yrd', 'xrd'), coords={'xrd': xrd, 'yrd': yrd})
-    da.to_netcdf('output3.nc')
-    da.rio.to_raster('output3.tiff')
-except Exception as e:
-    print(e)
+def y_van_rd_naar_geotop(y):
+    # voor GeoTop v1.5 (anders dan v1.4!!)
+    # y: waarde tussen 0 en 2810, in RD is dat 338500 en 619600
+    return (y - 338_500) / 100
 
-# transpose
-try:
-    ncT = nc.transpose()
-    ncT.to_netcdf('output4.nc')
-    ncT.rio.to_raster('output4.tiff')
-except Exception as e:
-    print(e)
+def z_van_nap_naar_geotop(z):
+    # voor GeoTop v1.5 (anders dan v1.4!!)
+    # z: waarde tussen 0 en 312, in NAP is dat -50 en 106,5
+    return (z - -50) * 2
 
-# transpose and make a new DataArray
-try:
-    ncT = nc.transpose()
-    data = ncT['lithok'].data
-    xrd = ncT['xrd'].data
-    yrd = ncT['yrd'].data
-    z = ncT['z'].data
-    da = xr.DataArray(data, dims=('z', 'y', 'x'), coords={'x': xrd, 'y': yrd})
-    da.to_netcdf('output5.nc')
-    da.rio.to_raster('output5.tiff')
-except Exception as e:
-    print(e)
+# RD omzetten naar GeoTOP coördinaten
+xGTStart = x_van_rd_naar_geotop(links[0])
+xGTEnd = x_van_rd_naar_geotop(rechts[0])
+yGTStart = y_van_rd_naar_geotop(links[1])
+yGTEnd = y_van_rd_naar_geotop(rechts[1])
+zGTMin = z_van_nap_naar_geotop(diepte[0])
+zGTMax = z_van_nap_naar_geotop(diepte[1])
+# de API wil hele getallen
+xStart = int(xGTStart)
+yStart = int(yGTStart)
+xEnd = int(xGTEnd) + 1
+yEnd = int(yGTEnd) + 1
+zMin = int(zGTMin)
+zMax = int(zGTMax)
 
-# transpose and make a new DataArray with all data, without reversing xyz in making a new data array
-try:
-    ncT = nc.transpose()
-    data = nc['lithok'].data
-    xrd = nc['xrd'].data
-    yrd = nc['yrd'].data
-    z = nc['z'].data
-    da = xr.DataArray(data, dims=('x', 'y', 'z'), coords={'x': xrd, 'y': yrd})
-    da.to_netcdf('output6.nc')
-    da.rio.to_raster('output6.tiff')
-except Exception as e:
-    print(e)
 
-# use xrd and yrd instead of x and y
-try:
-    ncT = nc.transpose()
-    data = nc['lithok'].data
-    xrd = nc['xrd'].data
-    yrd = nc['yrd'].data
-    z = nc['z'].data
-    da = xr.DataArray(data, dims=('xrd', 'yrd', 'z'), coords={'xrd': xrd, 'yrd': yrd})
-    da.to_netcdf('output7.nc')
-    da.rio.to_raster('output7.tiff')
-except Exception as e:
-    print(e)
+for geoType in ['lithok', 'strat']: 
+
+    # naam van uitvoerbestand
+    fileOut = f'./output/geotop_{geoType}.nc'
+
+    # haal data op
+    url = f'https://www.dinodata.nl/opendap/GeoTOP/geotop.nc?{geoType}[{xStart}:1:{xEnd}][{yStart}:1:{yEnd}][{zMin}:1:{zMax}]'
+
+    ds = xr.open_dataset(url)
+
+    lons = np.linspace(int(links[0]), int(rechts[0]) + 100, int((rechts[0] - links[0]) / 100) + 2)
+    lats = np.linspace(int(links[1]), int(rechts[1]) + 100, int((rechts[1] - links[1]) / 100) + 2)
+    depths = np.linspace(diepte[0], diepte[1], int((diepte[1] - diepte[0]) * 2 + 1))
+    datas = ds[geoType].data
+
+    # maak een netcdf
+    ncfile = Dataset('./output/temp.nc', 'w')
+    # dimensies moeten lat, lon heten, anders opent het niet in QGis
+    # mogen wel in RD of ander coördinatensysteem zijn
+    lat_dim = ncfile.createDimension('lat', len(lats))
+    lon_dim = ncfile.createDimension('lon', len(lons))
+    depth_dim = ncfile.createDimension('depth', len(depths))
+    data_dim = ncfile.createDimension(geoType, None)
+
+    lat = ncfile.createVariable('lat', np.float32, ('lat',))
+    lat.units = 'm'
+    lat.long_name = 'y RD'
+    lon = ncfile.createVariable('lon', np.float32, ('lon',))
+    lon.units = 'm'
+    lon.long_name = 'x RD'
+    depth = ncfile.createVariable('depth', np.float64, ('depth'))
+    depth.units = 'm'
+    depth.long_name = 'depth'
+    data = ncfile.createVariable(geoType, np.float64, ('lon', 'lat', 'depth'))
+    data.units = 'm'
+    data.long_name = geoType
+
+    lat[:] = lats
+    lon[:] = lons
+    depth[:] = depths
+    data[:] = datas
+
+    ncfile.title = f'GeoTOP {geoType}'
+    ncfile.close()
+
+    # er moet een transpose worden gedaan om x en y om te wisselen
+    ds = xr.open_dataset('./output/temp.nc')
+    ds = ds.transpose()
+    ds.to_netcdf(fileOut)
+    ds.close()
