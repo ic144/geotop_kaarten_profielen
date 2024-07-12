@@ -13,7 +13,7 @@ import json
 
 # profiellijn in RD
 profiellijnen_rd = {
-    'DCK-Oergeul': LineString(((129858.7,486052.7), (130235.8,484875.2)))
+    'Zuidoost': LineString(((125323.6,482461.7), (126614.7,480186.9)))
 }
 
 punten_rd = {
